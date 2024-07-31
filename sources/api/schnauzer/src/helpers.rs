@@ -975,6 +975,54 @@ pub fn join_array(
     Ok(())
 }
 
+/// `toml_encode` is used to join an array of scalar strings into an array of
+/// quoted, delimited strings. The delimiter must be specified.
+///
+/// # Example
+///
+/// Consider an array of values: `[ "a", "b", "c" ]` stored in a setting such as
+/// `settings.somewhere.foo-list`. In our template we can write:
+/// `{{ toml_encode settings.somewhere.foo-list }}`
+///
+/// This will render `"a", "b", "c"`.
+pub fn toml_encode(
+    helper: &Helper<'_, '_>,
+    _: &Handlebars,
+    _: &Context,
+    renderctx: &mut RenderContext<'_, '_>,
+    out: &mut dyn Output,
+) -> Result<(), RenderError> {
+    trace!("Starting toml_encode helper");
+    let template_name = template_name(renderctx);
+    check_param_count(helper, template_name, 1)?;
+
+    // get the string
+    let encode_param = get_param(helper, 0)?;
+    let mut result: String = String::new();
+
+    let string_array =
+        encode_param
+            .as_array()
+            .with_context(|| error::JoinStringsWrongTypeSnafu {
+                expected_type: "Array",
+                value: encode_param.to_owned(),
+                template: template_name,
+            })?;
+
+    for string_val in string_array.iter() {
+        result.push_str(&string_val.to_string());
+        result.push_str(", ");
+    }
+
+    // write it to the template
+    out.write(&result)
+        .with_context(|_| error::TemplateWriteSnafu {
+            template: template_name.to_owned(),
+        })?;
+
+    Ok(())
+}
+
 /// kube_reserve_memory and kube_reserve_cpu are taken from EKS' calculations.
 /// https://github.com/awslabs/amazon-eks-ami/blob/db28da15d2b696bc08ac3aacc9675694f4a69933/files/bootstrap.sh
 
@@ -2539,6 +2587,65 @@ mod test_join_array {
             setup_and_render_template(TEMPLATE, &json!({"settings": {"foo-list": ["a", "", "c"]}}))
                 .unwrap();
         let expected = r#""a", "", "c""#;
+        assert_eq!(result, expected);
+    }
+}
+
+#[cfg(test)]
+mod test_toml_encode {
+    use super::*;
+    use handlebars::RenderError;
+    use serde::Serialize;
+    use serde_json::json;
+
+    // A thin wrapper around the handlebars render_template method that includes
+    // setup and registration of helpers
+    fn setup_and_render_template<T>(tmpl: &str, data: &T) -> Result<String, RenderError>
+    where
+        T: Serialize,
+    {
+        let mut registry = Handlebars::new();
+        registry.register_helper("toml_encode", Box::new(toml_encode));
+
+        registry.render_template(tmpl, data)
+    }
+
+    const TEMPLATE: &str = r#"[{{ toml_encode settings.foo-string }}]"#;
+
+    #[test]
+    fn join_toml_encode_empty() {
+        let result =
+            setup_and_render_template(TEMPLATE, &json!({"settings": {"foo-string": []}})).unwrap();
+        let expected = r#"[]"#;
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn join_toml_encode_empty_string() {
+        let result =
+            setup_and_render_template(TEMPLATE, &json!({"settings": {"foo-string": [""]}}))
+                .unwrap();
+        let expected = r#"["", ]"#;
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn join_toml_encode_toml_injection_1() {
+        let result = setup_and_render_template(
+            TEMPLATE,
+            &json!({"settings": {"foo-string": [ "apiclient set motd=hello\", \"echo pwned\""]}}),
+        )
+        .unwrap();
+        let expected = r#"["apiclient set motd=hello\", \"echo pwned\"", ]"#;
+        assert_eq!(result, expected);
+    }
+
+    #[test]
+    fn join_toml_encode_toml_injection_2() {
+        let result =
+            setup_and_render_template(TEMPLATE, &json!({"settings": {"foo-string": [ "apiclient set motd=hello\", \"echo pwned\"", "apiclient set motd=hello\", \"echo pwned1\""]}}))
+                .unwrap();
+        let expected = r#"["apiclient set motd=hello\", \"echo pwned\"", "apiclient set motd=hello\", \"echo pwned1\"", ]"#;
         assert_eq!(result, expected);
     }
 }

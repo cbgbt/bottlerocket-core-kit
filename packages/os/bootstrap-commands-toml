@@ -1,0 +1,22 @@
+[required-extensions]
+bootstrap-commands= "v1"
+std = { version = "v1", helpers = ["if_not_null", "join_nested_array"]}
++++
+{{#if_not_null settings.bootstrap-commands}}
+{{#each settings.bootstrap-commands}}
+[bootstrap-commands."{{@key}}"]
+{{#if_not_null this.commands}}
+commands = [
+{{#each this.commands}}
+    [{{#each this}}'''{{{ this }}}''',{{/each}}],
+{{/each}}
+]
+{{/if_not_null}}
+{{#if_not_null this.mode}}
+mode = "{{{this.mode}}}"
+{{/if_not_null}}
+{{#if_not_null this.essential}}
+essential = {{this.essential}}
+{{/if_not_null}}
+{{/each}}
+{{/if_not_null}}

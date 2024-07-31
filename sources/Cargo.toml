@@ -23,6 +23,8 @@ members = [
 
     "bloodhound",
 
+    "bootstrap-commands",
+
     "bottlerocket-release",
 
     "bottlerocket-variant",
