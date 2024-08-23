@@ -236,6 +236,18 @@ mod error {
             source: std::io::Error,
         },
 
+        #[snafu(display(
+            "Unable to encode input '{}' from template '{}' as toml: {}",
+            value,
+            source,
+            template
+        ))]
+        TomlEncode {
+            value: serde_json::Value,
+            source: serde_json::Error,
+            template: String,
+        },
+
         #[snafu(display("Unknown architecture '{}' given to goarch helper", given))]
         UnknownArch { given: String },
 
@@ -975,8 +987,7 @@ pub fn join_array(
     Ok(())
 }
 
-/// `toml_encode` is used to join an array of scalar strings into an array of
-/// quoted, delimited strings. The delimiter must be specified.
+/// `toml_encode` accepts arbitrary input and encodes it as a toml string
 ///
 /// # Example
 ///
@@ -984,7 +995,7 @@ pub fn join_array(
 /// `settings.somewhere.foo-list`. In our template we can write:
 /// `{{ toml_encode settings.somewhere.foo-list }}`
 ///
-/// This will render `"a", "b", "c"`.
+/// This will render `["a", "b", "c"]`.
 pub fn toml_encode(
     helper: &Helper<'_, '_>,
     _: &Handlebars,
@@ -998,21 +1009,16 @@ pub fn toml_encode(
 
     // get the string
     let encode_param = get_param(helper, 0)?;
-    let mut result: String = String::new();
 
-    let string_array =
-        encode_param
-            .as_array()
-            .with_context(|| error::JoinStringsWrongTypeSnafu {
-                expected_type: "Array",
+    let toml_value: toml::Value =
+        serde_json::from_value(encode_param.to_owned()).with_context(|_| {
+            error::TomlEncodeSnafu {
                 value: encode_param.to_owned(),
                 template: template_name,
-            })?;
+            }
+        })?;
 
-    for string_val in string_array.iter() {
-        result.push_str(&string_val.to_string());
-        result.push_str(", ");
-    }
+    let result = toml_value.to_string();
 
     // write it to the template
     out.write(&result)
@@ -2610,7 +2616,7 @@ mod test_toml_encode {
         registry.render_template(tmpl, data)
     }
 
-    const TEMPLATE: &str = r#"[{{ toml_encode settings.foo-string }}]"#;
+    const TEMPLATE: &str = r#"{{ toml_encode settings.foo-string }}"#;
 
     #[test]
     fn join_toml_encode_empty() {
@@ -2625,7 +2631,7 @@ mod test_toml_encode {
         let result =
             setup_and_render_template(TEMPLATE, &json!({"settings": {"foo-string": [""]}}))
                 .unwrap();
-        let expected = r#"["", ]"#;
+        let expected = r#"[""]"#;
         assert_eq!(result, expected);
     }
 
@@ -2636,7 +2642,7 @@ mod test_toml_encode {
             &json!({"settings": {"foo-string": [ "apiclient set motd=hello\", \"echo pwned\""]}}),
         )
         .unwrap();
-        let expected = r#"["apiclient set motd=hello\", \"echo pwned\"", ]"#;
+        let expected = r#"['apiclient set motd=hello", "echo pwned"']"#;
         assert_eq!(result, expected);
     }
 
@@ -2645,7 +2651,7 @@ mod test_toml_encode {
         let result =
             setup_and_render_template(TEMPLATE, &json!({"settings": {"foo-string": [ "apiclient set motd=hello\", \"echo pwned\"", "apiclient set motd=hello\", \"echo pwned1\""]}}))
                 .unwrap();
-        let expected = r#"["apiclient set motd=hello\", \"echo pwned\"", "apiclient set motd=hello\", \"echo pwned1\"", ]"#;
+        let expected = r#"['apiclient set motd=hello", "echo pwned"', 'apiclient set motd=hello", "echo pwned1"']"#;
         assert_eq!(result, expected);
     }
 }
