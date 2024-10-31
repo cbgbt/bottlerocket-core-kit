@@ -1,0 +1,32 @@
+From b0faba26af61e1ea6dbdec50aff144f7365c75bb Mon Sep 17 00:00:00 2001
+From: "Sean P. Kelly" <seankell@amazon.com>
+Date: Thu, 31 Oct 2024 18:30:36 +0000
+Subject: [PATCH] sleep before starting plugin server
+
+---
+ pkg/kubelet/cm/devicemanager/plugin/v1beta1/server.go | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/pkg/kubelet/cm/devicemanager/plugin/v1beta1/server.go b/pkg/kubelet/cm/devicemanager/plugin/v1beta1/server.go
+index d6ddd26b..c7b7144b 100644
+--- a/pkg/kubelet/cm/devicemanager/plugin/v1beta1/server.go
++++ b/pkg/kubelet/cm/devicemanager/plugin/v1beta1/server.go
+@@ -23,6 +23,7 @@ import (
+ 	"os"
+ 	"path/filepath"
+ 	"sync"
++	"time"
+ 
+ 	"github.com/opencontainers/selinux/go-selinux"
+ 	"google.golang.org/grpc"
+@@ -97,6 +98,7 @@ func (s *server) Start() error {
+ 		return err
+ 	}
+ 
++	time.Sleep(10 * time.Second)
+ 	ln, err := net.Listen("unix", s.SocketPath())
+ 	if err != nil {
+ 		klog.ErrorS(err, "Failed to listen to socket while starting device plugin registry")
+-- 
+2.40.1
+

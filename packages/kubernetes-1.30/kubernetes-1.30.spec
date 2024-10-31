@@ -71,6 +71,8 @@ BuildRequires: git
 BuildRequires: rsync
 BuildRequires: %{_cross_os}glibc-devel
 
+Patch0001: 0001-sleep-before-starting-plugin-server.patch
+
 %description
 %{summary}.
 

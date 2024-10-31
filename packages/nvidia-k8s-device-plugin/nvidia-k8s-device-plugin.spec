@@ -21,6 +21,8 @@ Source3: nvidia-k8s-device-plugin-exec-start-conf
 BuildRequires: %{_cross_os}glibc-devel
 Requires: %{name}(binaries)
 
+Patch0001: 0001-sleep-before-starting-plugins.patch
+
 %description
 %{summary}.
 
