@@ -23,6 +23,7 @@ use std::net::{IpAddr, Ipv4Addr, Ipv6Addr};
 use std::str::FromStr;
 use url::Url;
 
+pub mod overrides;
 pub mod stdlib;
 
 pub use stdlib::{

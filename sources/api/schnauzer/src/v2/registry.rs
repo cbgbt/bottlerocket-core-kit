@@ -19,6 +19,7 @@ pub async fn construct_handlebars_registry<'a>(
     template_registry.set_strict_mode(true);
 
     register_requested_helpers(helper_resolver, &mut template_registry, frontmatter).await?;
+    register_overridden_helpers(&mut template_registry);
 
     Ok(template_registry)
 }
@@ -38,6 +39,12 @@ async fn register_requested_helpers(
             })?
     }
     Ok(())
+}
+
+/// Overrides helpers provded by `handlebars``.
+fn register_overridden_helpers(template_registry: &mut Handlebars<'_>) {
+    template_registry.register_helper("eq", Box::new(crate::helpers::overrides::CustomEqHelper));
+    template_registry.register_helper("and", Box::new(crate::helpers::overrides::CustomAndHelper));
 }
 
 pub mod error {
